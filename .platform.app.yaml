@@ -7,21 +7,20 @@ name: app
 # The runtime the application uses.
 type: "php:7.4"
 
-# Configuration of the build of the application.
-build:
-    flavor: composer
-
 dependencies:
     php:
         composer/composer: '^2'
         wp-cli/wp-cli: "^2.2.0"
-
+    python3:
+       pipenv: '*'
 hooks:
     build: |
         set -e
         # Copy manually-provided plugins into the plugins directory.
         # This allows manually-provided and composer-provided plugins to coexist.
         rsync -a plugins/* wordpress/wp-content/plugins/
+        pip3 install git+git://github.com/matthiaz/template-builder.git@mr/matthias/building-on-top-of-ludo-work#egg=template-builder
+        auto-update django3 update
 
 # The relationships of the application with services or other applications.
 # The left-hand side is the name of the relationship as it will be exposed
@@ -73,3 +72,24 @@ mounts:
         source: local
         source_path: "uploads"
 
+# Auto-update source operation
+source:
+  operations:
+    platform_update_dependencies:
+      command: |
+        pip3 install git+git://github.com/matthiaz/template-builder.git@mr/matthias/building-on-top-of-ludo-work#egg=template-builder
+        auto-update wordpress-composer update
+        date > last_updated_on
+        git add .
+        git commit -m "auto-update" --allow-empty
+
+timezone: "Europe/Paris" # Change this to your timezone https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+# Auto-update cron job
+crons:
+  update:
+    spec: '* 3 * * *' # run every night
+    cmd: |
+      if [ $PLATFORM_ENVIRONMENT_TYPE = production ]; then
+          auto-update wordpress-composer trigger_update_dependencies;
+      fi;
